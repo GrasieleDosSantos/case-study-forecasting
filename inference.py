@@ -1,16 +1,19 @@
 # custom modules
 from configs import get_timezone, columns_to_drop
 # external modules
-import joblib
+import pickle
 import pandas as pd
 from datetime import datetime
 import xgboost as xgb
-import sys
-import json
+import numpy as np
 
+get_timezone()
+
+# Load model
+with open('model.pkl', 'rb') as f:
+    model = pickle.load(f)
 # Get features names
-#features = list(model.get_score(importance_type='gain').keys())
-#print(features)
+default_features = model.feature_names
 
 def prep_data(df, features):
     # Dropping unecessary columns
@@ -19,15 +22,23 @@ def prep_data(df, features):
     df.dropna(inplace=True)
     # Encoding categorical data
     df_enc = pd.get_dummies(data=df, columns=['DES_CATEGORIA_MATERIAL','DES_MARCA_MATERIAL'], drop_first=True)
-    for i in features:
-        if i not in df_enc.columns:
-            print(f'Adding empty feature: {i}')
-            df_enc[i] = False
-            
-    for i in df_enc.columns:
-        if i not in features:
-            print(f'Removing extra feature not in feature list: {i}')
-            df_enc.drop(columns={i}, axis=1, inplace=True)
+    
+    # Create a set of expected columns based on the features list
+    expected_cols = set(features)
+    # Create a set of the actual columns in df_enc
+    actual_cols = set(df_enc.columns)
+
+    # Find any missing columns and add them with default values of zero
+    missing_cols = expected_cols - actual_cols
+    for col in missing_cols:
+        df_enc[col] = 0
+
+    # Drop any extra columns in df_enc that are not in the features list
+    extra_cols = actual_cols - expected_cols
+    df_enc.drop(columns=extra_cols, inplace=True)
+
+    # Reorder columns in df_enc to match the order in the features list
+    df_enc = df_enc[features]
     
     return df_enc
     
@@ -41,11 +52,10 @@ def predict_arima(new_cycles, len_cycle):
     df.to_excel('data/forecasted_values.xlsx', index=False)
     return predictions
 
-def predict_xgb(new_data, features):
+def predict_xgb(new_data, features = default_features, model = model):
     df = prep_data(new_data, features)
-    df = xgb.DMatrix(df)
-    model = joblib.load('model.pkl')
-    predictions = model.predict(df)
+    df_xgb = xgb.DMatrix(df)
+    predictions = model.predict(df_xgb)
     preds = pd.DataFrame(predictions, columns=['Predicted Values'])
     preds.to_excel('data/forecasted_values.xlsx', index=False)
     return preds

@@ -1,4 +1,4 @@
-import joblib
+import pickle
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -71,11 +71,12 @@ def main():
     metrics, predictions = evaluate_model_xgb(model, test, y_test)    
     print(metrics)
        
-    # Save model
+    # Serialize model
     print(f'Saving model')
-    joblib.dump(model, 'model.pkl')
+    with open('model.pkl', 'wb') as f:
+        pickle.dump(model, f)
     
-    features = list(model.get_score(importance_type='gain').keys())
+    features = model.feature_names
     print(f"Features:{features}")
 
     print(f'Finished train step at {datetime.now().strftime("%H:%M:%S")}')
